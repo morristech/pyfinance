@@ -2,11 +2,11 @@ import bs4 as bs
 import datetime as dt
 import os
 import pandas as pd
-pd.core.common.is_list_like = pd.api.types.is_list_like
 import pandas_datareader as web
 import pickle
 import requests
 import time
+from alpha_vantage.timeseries import TimeSeries
 
 
 def save_sp500_tickers():
@@ -40,12 +40,25 @@ def get_data_from_yahoo(reload_sp500=False):
     start = dt.datetime(2000, 1, 1)
     end = dt.datetime(2016, 12, 31)
 
+    ts = TimeSeries(key=os.getenv("ALPHAVANTAGE_API_KEY"),
+                    output_format="pandas")
+
     for ticker in tickers:
         print(ticker)
         if not os.path.exists("stock_dfs/{}.csv".format(ticker)):
             while True:
                 try:
-                    df = web.DataReader(ticker, "google", start, end)
+                    # df = web.DataReader(
+                    #     ticker,
+                    #     "av-daily",
+                    #     start=start,
+                    #     end=end,
+                    #     access_key=os.getenv("ALPHAVANTAGE_API_KEY"),
+                    # )
+
+                    df, meta = ts.get_daily_adjusted(
+                        symbol=ticker, outputsize="full")
+
                 except Exception as e:
                     print(e)
                     time.sleep(1)
@@ -63,9 +76,21 @@ def compile_data():
     main_df = pd.DataFrame()
     for count, ticker in enumerate(tickers):
         df = pd.read_csv("stock_dfs/{}.csv".format(ticker))
-        df.set_index("Date", inplace=True)
-        df.rename(columns={"Adj Close": ticker}, inplace=True)
-        df.drop(["Open", "High", "Low", "Close", "Volume"], 1, inplace=True)
+        df.set_index("date", inplace=True)
+        df.rename(columns={"5. adjusted close": ticker}, inplace=True)
+        df.drop(
+            [
+                "1. open",
+                "2. high",
+                "3. low",
+                "4. close",
+                "6. volume",
+                "7. dividend amount",
+                "8. split coefficient",
+            ],
+            1,
+            inplace=True,
+        )
 
         if main_df.empty:
             main_df = df
@@ -79,6 +104,6 @@ def compile_data():
     main_df.to_csv("sp500_joined_closes.csv")
 
 
-get_data_from_yahoo(reload_sp500=True)
+# get_data_from_yahoo(reload_sp500=True)
 
-# compile_data()
+compile_data()
